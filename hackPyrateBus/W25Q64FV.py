@@ -7,6 +7,9 @@ class W25Q64FV(SPI):
     MAX_WORDS = PAGE_SIZE * 32768 # max number of words in flash memory
 
     COMMAND_READ = 0x03
+    COMMAND_READ_STATUS_REG_1 = 0x05
+    COMMAND_READ_STATUS_REG_2 = 0x35
+    COMMAND_WRITE_ENABLE = 0x06
 
     def __init__(self, portname='', speed=115200, timeout=0.5, connect=True):
         """
@@ -43,7 +46,10 @@ class W25Q64FV(SPI):
 
     def read(self, addr, amount):
         """
-        Read data from flash memory using the write_then_read method
+        Read data from flash memory using the write_then_read method. Currently
+        this method is slow as hell because the data is sent to the UART before
+        pulling the CS pin high (even though in the documentation it says the CS
+        pin is pulled high before sending the data).
 
         Parameters
         ----------
@@ -81,3 +87,36 @@ class W25Q64FV(SPI):
         res.extend(r)
 
         return bytes(res)
+    def status_registers(self):
+        """
+        Returns the status registers of the flash memory.
+
+        Parameters
+        ----------
+
+        Examples
+        --------
+        >>> reg = winbond.read_status_registers()
+        """
+
+        # read status register 1
+        r = self.write_then_read(1, 1, [self.COMMAND_READ_STATUS_REG_1])
+        # read status register 2
+        r = r << 8 | self.write_then_read(1, 1, [self.COMMAND_READ_STATUS_REG_2])
+
+        return r
+
+    def write_enable(self):
+        """
+        Sets the Write Enable Latch (WEL) bit in the Status Register to a 1. The
+        WEL bit must be set prior to every Page Program, or Erase operation.
+
+        Parameters
+        ----------
+
+        Examples
+        --------
+        >>> winbond.write_enable()
+        """
+
+        self.write_then_read(1, 1, [self.COMMAND_WRITE_ENABLE])
