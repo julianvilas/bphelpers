@@ -87,6 +87,50 @@ class W25Q64FV(SPI):
         res.extend(r)
 
         return bytes(res)
+
+    def store(self, addr, data, chip_erase=False):
+        """
+        Store data to flash memory. The data is split into PAGE_SIZE byte chunks
+        and the method takes care of Write Enable and erasing the minimum
+        necessary sectors. It can be forced to erase the entire memory too.
+
+        Parameters
+        ----------
+        addr : int
+            Three byte address in the flash memory
+        data : bytes
+            The bytes to write to the flash memory
+        chip_erase : bool
+            Erase the entire memory before writing the data
+
+        Raises
+        ------
+        ValueError
+            If the address is out of range for the flash memory size
+
+        Examples
+        --------
+        >>> winbond.store(0x000000, b'\x00Hello, world!\xff')
+        """
+
+        if addr + len(data) > self.MAX_WORDS:
+            raise ValueError("Out of range for flash memory size")
+
+        res = []
+        # the bus pirate write_then_read method can only read 4096 bytes at a time
+        while amount > 4096:
+            header = [self.COMMAND_READ] + list(addr.to_bytes(3, 'big'))
+            r = self.write_then_read(len(header), 4096, header)
+            res.extend(r)
+            amount -= 4096
+            addr += 4096
+
+        header = [self.COMMAND_READ] + list(addr.to_bytes(3, 'big'))
+        r = self.write_then_read(len(header), amount, header)
+        res.extend(r)
+
+        return bytes(res)
+
     def status_registers(self):
         """
         Returns the status registers of the flash memory.
