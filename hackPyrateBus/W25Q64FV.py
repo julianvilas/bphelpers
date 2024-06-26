@@ -11,7 +11,7 @@ class W25Q64FV(SPI):
     COMMAND_READ_STATUS_REG_2 = 0x35
     COMMAND_WRITE_ENABLE = 0x06
 
-    def __init__(self, portname='', speed=115200, timeout=0.5, connect=True):
+    def __init__(self, portname='', speed=115200, timeout=0.5, connect=True, buzzpirateFirm=True):
         """
         Provide high-speed access to the Bus Pirate SPI hardware.
 
@@ -28,6 +28,12 @@ class W25Q64FV(SPI):
             Timeout in s to wait for reply
         connect : bool
             Connect to the Bus Pirate (default)
+        buzzpirateFirm : bool
+            Indicate if the firmware is https://buzzpirat.com/ or not. The
+            behavior of the write_then_read method is different. The
+            SPI.write_then_read method of the BPv3.6 firmware is buggy and only
+            returns 0x01 when there is data to read. In buzzpirate firmware that
+            is fixed.
 
         Examples
         --------
@@ -43,6 +49,9 @@ class W25Q64FV(SPI):
         self._speed = None
         self._cs = None
         self._pins = None
+
+        if not buzzpirateFirm:
+            self.write_then_read = self.write_then_read_no_iosuccess
 
     def read(self, addr, amount):
         """
@@ -163,6 +172,4 @@ class W25Q64FV(SPI):
         >>> winbond.write_enable()
         """
 
-        # this call should be using write_then_read but the BPv3.6 firmware is
-        # buggy and only returns 0x01 when there is data to read
-        self.write_then_read_no_iosuccess(1, 0, [self.COMMAND_WRITE_ENABLE])
+        self.write_then_read(1, 0, [self.COMMAND_WRITE_ENABLE])
