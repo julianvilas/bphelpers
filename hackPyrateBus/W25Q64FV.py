@@ -146,7 +146,7 @@ class W25Q64FV(SPI):
         # read status register 1
         r = self.write_then_read(1, 1, [self.COMMAND_READ_STATUS_REG_1])
         # read status register 2
-        r = r << 8 | self.write_then_read(1, 1, [self.COMMAND_READ_STATUS_REG_2])
+        r += self.write_then_read(1, 1, [self.COMMAND_READ_STATUS_REG_2])
 
         return r
 
@@ -163,4 +163,6 @@ class W25Q64FV(SPI):
         >>> winbond.write_enable()
         """
 
-        self.write_then_read(1, 1, [self.COMMAND_WRITE_ENABLE])
+        # this call should be using write_then_read but the BPv3.6 firmware is
+        # buggy and only returns 0x01 when there is data to read
+        self.write_then_read_no_iosuccess(1, 0, [self.COMMAND_WRITE_ENABLE])
