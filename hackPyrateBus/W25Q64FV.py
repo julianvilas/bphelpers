@@ -1,4 +1,5 @@
 from vendor.pyBusPirateLite.SPI import SPI
+from vendor.pyBusPirateLite.base import ProtocolError
 
 class W25Q64FV(SPI):
     """ Adapted SPI methods for Winbond W25Q64FV flash memory"""
@@ -10,6 +11,10 @@ class W25Q64FV(SPI):
     COMMAND_READ_STATUS_REG_1 = 0x05
     COMMAND_READ_STATUS_REG_2 = 0x35
     COMMAND_WRITE_ENABLE = 0x06
+    COMMAND_ERASE_SECTOR = 0x20
+    COMMAND_ERASE_32KB = 0x52
+    COMMAND_ERASE_64KB = 0xD8
+    COMMAND_ERASE_CHIP = 0x60
 
     def __init__(self, portname='', speed=115200, timeout=0.5, connect=True, buzzpirateFirm=True):
         """
@@ -71,6 +76,8 @@ class W25Q64FV(SPI):
         ------
         ValueError
             If the address is out of range for the flash memory size
+        ProtocolError
+            If the flash memory is busy
 
         Examples
         --------
@@ -81,6 +88,10 @@ class W25Q64FV(SPI):
 
         if addr + amount > self.MAX_WORDS:
             raise ValueError("Out of range for flash memory size")
+
+        # check that the flash memory is not busy
+        if self.status_registers()[0] & 0x01:
+            raise ProtocolError("Flash memory is busy")
 
         res = []
         # the bus pirate write_then_read method can only read 4096 bytes at a time
@@ -125,6 +136,23 @@ class W25Q64FV(SPI):
         if addr + len(data) > self.MAX_WORDS:
             raise ValueError("Out of range for flash memory size")
 
+        # check that the flash memory is not busy
+        reg = self.status_registers()
+        if reg[0] & 0x01:
+            raise ProtocolError("Flash memory is busy")
+
+        # split the data into PAGE_SIZE byte chunks otherwise the same page is
+        # overwritten over and over. If a chunk would exceed the page size due
+        # to the address provided, the remaining bytes are written to the next
+        # page.
+
+        # calculate the number of pages to write
+        pages = len(data) // self.PAGE_SIZE
+        if len(data) % self.PAGE_SIZE > 0:
+            pages += 1
+        if len(data) % self.PAGE_SIZE + addr & 0xFF > self.PAGE_SIZE:
+            pages += 1
+
         res = []
         # the bus pirate write_then_read method can only read 4096 bytes at a time
         while amount > 4096:
@@ -139,6 +167,39 @@ class W25Q64FV(SPI):
         res.extend(r)
 
         return bytes(res)
+
+    def erase(self, command, addr):
+        """
+        Erase the flash memory using the provided command.
+
+        Parameters
+        ----------
+        command : int
+            The command to erase the flash memory
+        addr : int
+            Three byte address in the flash memory
+
+        Raises
+        ------
+        ValueError
+            If the address is out of range for the flash memory size
+        ProtocolError
+            If the flash memory is busy
+
+        Examples
+        --------
+        >>> winbond.erase(winbond.COMMAND_ERASE_CHIP, 0x000000)
+        """
+
+        # if addr > self.MAX_WORDS:
+        #     raise ValueError("Out of range for flash memory size")
+
+        # # check that the flash memory is not busy
+        # if self.status_registers()[0] & 0x01:
+        #     raise ProtocolError("Flash memory is busy")
+
+        header = [command] + list(addr.to_bytes(3, 'big'))
+        self.write_then_read(len(header), 0, header)
 
     def status_registers(self):
         """
