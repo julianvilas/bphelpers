@@ -1,5 +1,6 @@
 from vendor.pyBusPirateLite.SPI import SPI
 from vendor.pyBusPirateLite.base import ProtocolError
+import binascii
 
 class W25Q64FV(SPI):
     """ Adapted SPI methods for Winbond W25Q64FV flash memory"""
@@ -15,6 +16,9 @@ class W25Q64FV(SPI):
     COMMAND_ERASE_32KB = 0x52
     COMMAND_ERASE_64KB = 0xD8
     COMMAND_ERASE_CHIP = 0x60
+    COMMAND_MANUFACTURER = 0x90
+    COMMAND_UNIQUE_ID = 0x4B
+    COMMAND_JEDEC_ID = 0x9F
 
     def __init__(self, portname='', speed=115200, timeout=0.5, connect=True, buzzpirateFirm=True):
         """
@@ -242,3 +246,35 @@ class W25Q64FV(SPI):
         """
 
         self.write_then_read(1, 0, [self.COMMAND_WRITE_ENABLE])
+
+    def info(self):
+        """
+        Returns the manufacturer, device ID, unique ID, memory type and capacity
+        of the flash memory.
+
+        Returns
+        ----------
+        dict
+            A dictionary containing the following keys:
+            - 'manufacturer': str
+            - 'device_id': str
+            - 'unique_id': str
+            - 'memory_type': str
+            - 'capacity': int (in bytes)
+
+        Examples
+        --------
+        >>> winbond.info()
+        """
+
+        manufacturer = self.write_then_read(4, 2, [self.COMMAND_MANUFACTURER, 0x00, 0x00, 0x00])
+        unique_id = self.write_then_read(5, 8, [self.COMMAND_UNIQUE_ID, 0x00, 0x00, 0x00, 0x00])
+        jedec_id = self.write_then_read(1, 3, [self.COMMAND_JEDEC_ID])
+
+        return {
+            'manufacturer': hex(manufacturer[0]),
+            'device_id': hex(manufacturer[1]),
+            'unique_id': '0x' + binascii.hexlify(unique_id).decode(),
+            'memory_type': hex(jedec_id[1]),
+            'capacity': pow(2, jedec_id[2]),
+        }
