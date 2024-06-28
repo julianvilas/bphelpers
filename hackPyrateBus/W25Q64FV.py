@@ -177,7 +177,8 @@ class W25Q64FV(SPI):
         command : int
             The command to erase the flash memory
         addr : int
-            Three byte address in the flash memory
+            Three byte address in the flash memory. For the chip erase command
+            it is ignored.
 
         Raises
         ------
@@ -191,14 +192,21 @@ class W25Q64FV(SPI):
         >>> winbond.erase(winbond.COMMAND_ERASE_CHIP, 0x000000)
         """
 
-        # if addr > self.MAX_WORDS:
-        #     raise ValueError("Out of range for flash memory size")
+        if addr > self.MAX_WORDS and command != self.COMMAND_ERASE_CHIP:
+            raise ValueError("Out of range for flash memory size")
 
-        # # check that the flash memory is not busy
-        # if self.status_registers()[0] & 0x01:
-        #     raise ProtocolError("Flash memory is busy")
+        # check that the flash memory is not busy
+        reg = self.status_registers()
+        if reg[0] & 0x01:
+            raise ProtocolError("Flash memory is busy")
 
-        header = [command] + list(addr.to_bytes(3, 'big'))
+        # enable write
+        if reg[0] & 0x02 == 0:
+            self.write_enable()
+
+        header = [command]
+        if command != self.COMMAND_ERASE_CHIP:
+            header += list(addr.to_bytes(3, 'big'))
         self.write_then_read(len(header), 0, header)
 
     def status_registers(self):
