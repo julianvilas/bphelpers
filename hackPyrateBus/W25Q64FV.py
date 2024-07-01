@@ -201,7 +201,8 @@ class W25Q64FV(SPI):
 
     def erase(self, command, addr):
         """
-        Erase the flash memory using the provided command.
+        Erase the flash memory using the provided command. It takes care of the
+        Write Enable.
 
         Parameters
         ----------
@@ -244,8 +245,10 @@ class W25Q64FV(SPI):
         """
         Returns the status registers of the flash memory.
 
-        Parameters
+        Returns
         ----------
+        bytes
+            The status registers of the flash memory
 
         Examples
         --------
@@ -262,10 +265,7 @@ class W25Q64FV(SPI):
     def write_enable(self):
         """
         Sets the Write Enable Latch (WEL) bit in the Status Register to a 1. The
-        WEL bit must be set prior to every Page Program, or Erase operation.
-
-        Parameters
-        ----------
+        WEL bit must be set prijjjor to every Page Program, or Erase operation.
 
         Examples
         --------
