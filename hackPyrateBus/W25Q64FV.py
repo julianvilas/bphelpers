@@ -112,11 +112,10 @@ class W25Q64FV(SPI):
 
         return bytes(res)
 
-    def store(self, addr, data, chip_erase=False):
+    def store(self, addr, data):
         """
         Store data to flash memory. The data is split into PAGE_SIZE byte chunks
-        and the method takes care of Write Enable and erasing the minimum
-        necessary sectors. It can be forced to erase the entire memory too.
+        and the method takes care of Write Enable.
 
         Parameters
         ----------
@@ -124,8 +123,6 @@ class W25Q64FV(SPI):
             Three byte address in the flash memory
         data : bytes
             The bytes to write to the flash memory
-        chip_erase : bool
-            Erase the entire memory before writing the data
 
         Raises
         ------
@@ -145,18 +142,6 @@ class W25Q64FV(SPI):
         if reg[0] & 0x01:
             raise ProtocolError("Flash memory is busy")
 
-        # split the data into PAGE_SIZE byte chunks otherwise the same page is
-        # overwritten over and over. If a chunk would exceed the page size due
-        # to the address provided, the remaining bytes are written to the next
-        # page.
-
-        # calculate the number of pages to write
-        pages = len(data) // self.PAGE_SIZE
-        if len(data) % self.PAGE_SIZE > 0:
-            pages += 1
-        if len(data) % self.PAGE_SIZE + addr & 0xFF > self.PAGE_SIZE:
-            pages += 1
-
         res = []
         # the bus pirate write_then_read method can only read 4096 bytes at a time
         while amount > 4096:
@@ -171,6 +156,48 @@ class W25Q64FV(SPI):
         res.extend(r)
 
         return bytes(res)
+
+    def calculate_pages(self, addr, data):
+        """
+        Calculate the number of pages to write to the flash memory.
+
+        Splits the data into PAGE_SIZE byte chunks otherwise the same page is
+        overwritten over and over. If a chunk would exceed the page size due to
+        the address provided, the remaining bytes are written to the next page.
+
+        Parameters
+        ----------
+        addr : int
+            Three byte address in the flash memory
+        data : bytes
+            The bytes to write to the flash memory
+
+        Returns
+        ----------
+        int
+            The number of pages to write to the flash memory
+
+        Raises
+        ------
+        ValueError
+            If the address is out of range for the flash memory size
+
+        Examples
+        --------
+        >>> pages = winbond.calculate_pages(0x000000, b'\x00Hello, world!\xff')
+        """
+
+        if addr + len(data) > self.MAX_WORDS:
+            raise ValueError("Out of range for flash memory size")
+
+        # calculate the number of pages to write
+        pages = len(data) // self.PAGE_SIZE
+        if len(data) % self.PAGE_SIZE > 0:
+            pages += 1
+        if len(data) % self.PAGE_SIZE + addr & 0xFF > self.PAGE_SIZE:
+            pages += 1
+
+        return pages
 
     def erase(self, command, addr):
         """
